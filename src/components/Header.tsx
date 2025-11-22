@@ -1,9 +1,9 @@
 import { Button } from "../components/ui/Button";
-import { Calendar, Plus, List } from "lucide-react";
+import { Calendar, Plus, List, User } from "lucide-react";
 
 interface HeaderProps {
-  currentView: "dashboard" | "list" | "form" | "calendar";
-  onViewChange: (view: "dashboard" | "list" | "form" | "calendar") => void;
+  currentView: "dashboard" | "list" | "form" | "calendar" | "patients";
+  onViewChange: (view: "dashboard" | "list" | "form" | "calendar" | "patients") => void;
   businessName?: string;
 }
 
@@ -21,7 +21,7 @@ export const Header = ({ currentView, onViewChange, businessName = "Mi Negocio" 
             </p>
           </div>
 
-          <nav className="flex gap-2">
+          <nav className="flex gap-2 flex-wrap">
             <Button
               variant={currentView === "dashboard" ? "secondary" : "ghost"}
               onClick={() => onViewChange("dashboard")}
@@ -44,6 +44,18 @@ export const Header = ({ currentView, onViewChange, businessName = "Mi Negocio" 
             >
               <Calendar className="h-4 w-4 mr-2" />
               Calendario
+            </Button>
+
+            <Button
+              variant={currentView === "patients" ? "secondary" : "ghost"}
+              onClick={() => onViewChange("patients")}
+              className={`transition-all duration-300 hover:scale-105 ${currentView === "patients"
+                  ? "shadow-button"
+                  : "text-primary-foreground hover:bg-white/20 hover:text-white"
+                }`}
+            >
+              <User className="h-4 w-4 mr-2" />
+              Pacientes
             </Button>
 
             <Button
