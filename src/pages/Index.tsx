@@ -4,150 +4,80 @@ import { Dashboard } from "../components/Dashboard";
 import { TurnsList } from "../components/TurnList";
 import { AppointmentForm } from "../components/AppointmentForm";
 import { Calendar } from "./Calendar";
-import { type Turn } from "../components/TurnCard";
-import { useToast } from "../hooks/useToast";
+import { Patients } from "./Patients";
+import { useSupabaseTurns } from "../hooks/useSupabaseTurns";
+import { usePatients } from "../hooks/usePatients";
+import { type TurnInsert } from "../types/database.types";
 
-// Sample data for demonstration
-const sampleTurns: Turn[] = [
-  {
-    id: "1",
-    clientName: "María González",
-    clientPhone: "+54 9 11 1234-5678",
-    service: "Consulta General",
-    date: new Date().toISOString().split('T')[0], // Today
-    time: "10:00",
-    status: "confirmed",
-    notes: "Primera consulta, traer estudios previos"
-  },
-  {
-    id: "2",
-    clientName: "Juan Pérez",
-    clientPhone: "+54 9 11 2345-6789",
-    service: "Control de Rutina",
-    date: new Date().toISOString().split('T')[0], // Today
-    time: "11:30",
-    status: "pending",
-    notes: "Control mensual"
-  },
-  {
-    id: "3",
-    clientName: "Ana Rodríguez",
-    clientPhone: "+54 9 11 3456-7890",
-    service: "Consulta Especializada",
-    date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Tomorrow
-    time: "09:00",
-    status: "confirmed",
-    notes: "Seguimiento post-tratamiento"
-  },
-  {
-    id: "4",
-    clientName: "Carlos López",
-    clientPhone: "+54 9 11 4567-8901",
-    service: "Urgencia",
-    date: new Date().toISOString().split('T')[0], // Today
-    time: "15:00",
-    status: "cancelled",
-    notes: "Cancelado por el paciente"
-  },
-  {
-    id: "5",
-    clientName: "Laura Martínez",
-    clientPhone: "+54 9 11 5678-9012",
-    service: "Procedimiento",
-    date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Day after tomorrow
-    time: "14:00",
-    status: "confirmed",
-    notes: "Procedimiento menor, ayuno de 8 horas"
-  }
-];
-
-type ViewType = "dashboard" | "list" | "form" | "calendar";
+type ViewType = "dashboard" | "list" | "form" | "calendar" | "patients";
 
 const Index = () => {
   const [currentView, setCurrentView] = useState<ViewType>("dashboard");
-  const [turns, setTurns] = useState<Turn[]>(sampleTurns);
-  const [editingTurn, setEditingTurn] = useState<Turn | null>(null);
-  const { toast } = useToast();
+  const [editingTurnId, setEditingTurnId] = useState<string | null>(null);
 
-  const handleCreateTurn = (newTurnData: Omit<Turn, "id">) => {
-    const newTurn: Turn = {
-      ...newTurnData,
-      id: Date.now().toString(),
-    };
+  // Supabase hooks
+  const { turns, loading: turnsLoading, createTurn, updateTurn, updateTurnStatus } = useSupabaseTurns();
+  const { patients, loading: patientsLoading, createPatient } = usePatients();
 
-    setTurns(prev => [...prev, newTurn]);
-    setCurrentView("dashboard");
-    setEditingTurn(null);
+  const editingTurn = turns.find(t => t.id === editingTurnId) || null;
 
-    toast({
-      title: "Turno creado",
-      description: `Turno para ${newTurn.clientName} el ${newTurn.date} a las ${newTurn.time}`,
-    });
-  };
-
-  const handleEditTurn = (turn: Turn) => {
-    setEditingTurn(turn);
-    setCurrentView("form");
-  };
-
-  const handleUpdateTurn = (updatedTurnData: Omit<Turn, "id">) => {
-    if (editingTurn) {
-      const updatedTurn: Turn = {
-        ...updatedTurnData,
-        id: editingTurn.id,
-      };
-
-      setTurns(prev => prev.map(turn =>
-        turn.id === editingTurn.id ? updatedTurn : turn
-      ));
+  const handleCreateTurn = async (turnData: TurnInsert) => {
+    const newTurn = await createTurn(turnData);
+    if (newTurn) {
       setCurrentView("dashboard");
-      setEditingTurn(null);
-
-      toast({
-        title: "Turno actualizado",
-        description: `Turno de ${updatedTurn.clientName} actualizado correctamente`,
-      });
     }
   };
 
-  const handleCancelTurn = (id: string) => {
-    setTurns(prev => prev.map(turn =>
-      turn.id === id ? { ...turn, status: "cancelled" as const } : turn
-    ));
-
-    const cancelledTurn = turns.find(turn => turn.id === id);
-    toast({
-      title: "Turno cancelado",
-      description: `Turno de ${cancelledTurn?.clientName} cancelado`,
-      variant: "destructive",
-    });
+  const handleEditTurn = (turnId: string) => {
+    setEditingTurnId(turnId);
+    setCurrentView("form");
   };
 
-  const handleConfirmTurn = (id: string) => {
-    setTurns(prev => prev.map(turn =>
-      turn.id === id ? { ...turn, status: "confirmed" as const } : turn
-    ));
+  const handleUpdateTurn = async (turnData: TurnInsert) => {
+    if (editingTurnId) {
+      const success = await updateTurn(editingTurnId, turnData);
+      if (success) {
+        setCurrentView("dashboard");
+        setEditingTurnId(null);
+      }
+    }
+  };
 
-    const confirmedTurn = turns.find(turn => turn.id === id);
-    toast({
-      title: "Turno confirmado",
-      description: `Turno de ${confirmedTurn?.clientName} confirmado`,
-    });
+  const handleCancelTurn = async (id: string) => {
+    await updateTurnStatus(id, "cancelled");
+  };
+
+  const handleConfirmTurn = async (id: string) => {
+    await updateTurnStatus(id, "confirmed");
   };
 
   const handleNewTurn = (_date?: Date, _hour?: number) => {
-    setEditingTurn(null);
+    setEditingTurnId(null);
     setCurrentView("form");
     // TODO: Pre-fill form with date and hour if provided
   };
 
-  const handleSubmitForm = (turnData: Omit<Turn, "id">) => {
-    if (editingTurn) {
-      handleUpdateTurn(turnData);
+  const handleSubmitForm = async (turnData: TurnInsert) => {
+    if (editingTurnId) {
+      await handleUpdateTurn(turnData);
     } else {
-      handleCreateTurn(turnData);
+      await handleCreateTurn(turnData);
     }
   };
+
+  // Convert TurnWithPatient to old Turn format for compatibility
+  const legacyTurns = turns.map(turn => ({
+    id: turn.id,
+    clientName: `${turn.patient.first_name} ${turn.patient.last_name}`,
+    clientPhone: turn.patient.phone,
+    service: turn.service,
+    date: turn.date,
+    time: turn.time,
+    status: turn.status,
+    notes: turn.notes || "",
+  }));
+
+  const loading = turnsLoading || patientsLoading;
 
   return (
     <div className="min-h-screen bg-gradient-background">
@@ -158,40 +88,52 @@ const Index = () => {
       />
 
       <main className="container mx-auto px-6 pb-8">
-        {currentView === "dashboard" && (
+        {loading && currentView !== "patients" && (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Cargando...</p>
+          </div>
+        )}
+
+        {!loading && currentView === "dashboard" && (
           <Dashboard
-            turns={turns}
-            onEditTurn={handleEditTurn}
+            turns={legacyTurns}
+            onEditTurn={(turn) => handleEditTurn(turn.id)}
             onCancelTurn={handleCancelTurn}
             onConfirmTurn={handleConfirmTurn}
             onNewTurn={handleNewTurn}
           />
         )}
 
-        {currentView === "list" && (
+        {!loading && currentView === "list" && (
           <TurnsList
-            turns={turns}
-            onEditTurn={handleEditTurn}
+            turns={legacyTurns}
+            onEditTurn={(turn) => handleEditTurn(turn.id)}
             onCancelTurn={handleCancelTurn}
             onConfirmTurn={handleConfirmTurn}
           />
         )}
 
-        {currentView === "calendar" && (
+        {!loading && currentView === "calendar" && (
           <Calendar
-            turns={turns}
-            onEditTurn={handleEditTurn}
+            turns={legacyTurns}
+            onEditTurn={(turn) => handleEditTurn(turn.id)}
             onCancelTurn={handleCancelTurn}
             onConfirmTurn={handleConfirmTurn}
             onNewTurn={handleNewTurn}
           />
+        )}
+
+        {currentView === "patients" && (
+          <Patients />
         )}
 
         {currentView === "form" && (
           <div className="max-w-2xl mx-auto">
             <AppointmentForm
               onSubmit={handleSubmitForm}
+              onCreatePatient={createPatient}
               initialData={editingTurn || undefined}
+              patients={patients}
             />
           </div>
         )}
