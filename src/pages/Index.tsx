@@ -3,6 +3,7 @@ import { Header } from "../components/Header";
 import { Dashboard } from "../components/Dashboard";
 import { TurnsList } from "../components/TurnList";
 import { AppointmentForm } from "../components/AppointmentForm";
+import { Calendar } from "./Calendar";
 import { type Turn } from "../components/TurnCard";
 import { useToast } from "../hooks/useToast";
 
@@ -60,7 +61,7 @@ const sampleTurns: Turn[] = [
   }
 ];
 
-type ViewType = "dashboard" | "list" | "form";
+type ViewType = "dashboard" | "list" | "form" | "calendar";
 
 const Index = () => {
   const [currentView, setCurrentView] = useState<ViewType>("dashboard");
@@ -73,11 +74,11 @@ const Index = () => {
       ...newTurnData,
       id: Date.now().toString(),
     };
-    
+
     setTurns(prev => [...prev, newTurn]);
     setCurrentView("dashboard");
     setEditingTurn(null);
-    
+
     toast({
       title: "Turno creado",
       description: `Turno para ${newTurn.clientName} el ${newTurn.date} a las ${newTurn.time}`,
@@ -95,13 +96,13 @@ const Index = () => {
         ...updatedTurnData,
         id: editingTurn.id,
       };
-      
-      setTurns(prev => prev.map(turn => 
+
+      setTurns(prev => prev.map(turn =>
         turn.id === editingTurn.id ? updatedTurn : turn
       ));
       setCurrentView("dashboard");
       setEditingTurn(null);
-      
+
       toast({
         title: "Turno actualizado",
         description: `Turno de ${updatedTurn.clientName} actualizado correctamente`,
@@ -110,10 +111,10 @@ const Index = () => {
   };
 
   const handleCancelTurn = (id: string) => {
-    setTurns(prev => prev.map(turn => 
+    setTurns(prev => prev.map(turn =>
       turn.id === id ? { ...turn, status: "cancelled" as const } : turn
     ));
-    
+
     const cancelledTurn = turns.find(turn => turn.id === id);
     toast({
       title: "Turno cancelado",
@@ -123,10 +124,10 @@ const Index = () => {
   };
 
   const handleConfirmTurn = (id: string) => {
-    setTurns(prev => prev.map(turn => 
+    setTurns(prev => prev.map(turn =>
       turn.id === id ? { ...turn, status: "confirmed" as const } : turn
     ));
-    
+
     const confirmedTurn = turns.find(turn => turn.id === id);
     toast({
       title: "Turno confirmado",
@@ -134,9 +135,10 @@ const Index = () => {
     });
   };
 
-  const handleNewTurn = () => {
+  const handleNewTurn = (_date?: Date, _hour?: number) => {
     setEditingTurn(null);
     setCurrentView("form");
+    // TODO: Pre-fill form with date and hour if provided
   };
 
   const handleSubmitForm = (turnData: Omit<Turn, "id">) => {
@@ -149,12 +151,12 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-background">
-      <Header 
+      <Header
         currentView={currentView}
         onViewChange={setCurrentView}
         businessName="Consultorio Médico Demo"
       />
-      
+
       <main className="container mx-auto px-6 pb-8">
         {currentView === "dashboard" && (
           <Dashboard
@@ -165,7 +167,7 @@ const Index = () => {
             onNewTurn={handleNewTurn}
           />
         )}
-        
+
         {currentView === "list" && (
           <TurnsList
             turns={turns}
@@ -174,7 +176,17 @@ const Index = () => {
             onConfirmTurn={handleConfirmTurn}
           />
         )}
-        
+
+        {currentView === "calendar" && (
+          <Calendar
+            turns={turns}
+            onEditTurn={handleEditTurn}
+            onCancelTurn={handleCancelTurn}
+            onConfirmTurn={handleConfirmTurn}
+            onNewTurn={handleNewTurn}
+          />
+        )}
+
         {currentView === "form" && (
           <div className="max-w-2xl mx-auto">
             <AppointmentForm
