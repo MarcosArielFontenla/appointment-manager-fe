@@ -11,12 +11,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/Select";
-import { CalendarDays, Clock, Plus } from "lucide-react";
-import type { Turn } from "../components/TurnCard";
+import { PatientSelector } from "./PatientSelector";
+import { PatientForm } from "./PatientForm";
+import { CalendarDays, Clock, Plus, ArrowLeft } from "lucide-react";
+import { type Patient, type PatientInsert, type TurnInsert, type TurnWithPatient } from "../types/database.types";
 
 interface AppointmentFormProps {
-  onSubmit: (turn: Omit<Turn, "id">) => void;
-  initialData?: Turn;
+  onSubmit: (turn: TurnInsert) => void | Promise<void>;
+  onCreatePatient?: (patient: PatientInsert) => Promise<Patient | null>;
+  initialData?: TurnWithPatient;
+  patients: Patient[];
   services?: string[];
 }
 
@@ -35,25 +39,81 @@ const timeSlots = [
   "17:00", "17:30", "18:00", "18:30", "19:00", "19:30",
 ];
 
-export const AppointmentForm = ({ onSubmit, initialData, services = defaultServices }: AppointmentFormProps) => {
+export const AppointmentForm = ({
+  onSubmit,
+  onCreatePatient,
+  initialData,
+  patients,
+  services = defaultServices
+}: AppointmentFormProps) => {
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(
+    initialData?.patient || null
+  );
+  const [showPatientForm, setShowPatientForm] = useState(false);
+  const [creatingPatient, setCreatingPatient] = useState(false);
+
   const [formData, setFormData] = useState({
-    clientName: initialData?.clientName || "",
-    clientPhone: initialData?.clientPhone || "",
     service: initialData?.service || "",
     date: initialData?.date || "",
     time: initialData?.time || "",
     status: initialData?.status || "pending" as const,
-    notes: initialData?.notes || "",
+    notes: initialData?.notes || null,
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+
+    if (!selectedPatient) {
+      alert("Por favor seleccione un paciente");
+      return;
+    }
+
+    await onSubmit({
+      patient_id: selectedPatient.id,
+      service: formData.service,
+      date: formData.date,
+      time: formData.time,
+      status: formData.status,
+      notes: formData.notes || null,
+    });
   };
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  const handleCreatePatient = async (patientData: PatientInsert) => {
+    if (!onCreatePatient) return;
+
+    setCreatingPatient(true);
+    const newPatient = await onCreatePatient(patientData);
+    setCreatingPatient(false);
+
+    if (newPatient) {
+      setSelectedPatient(newPatient);
+      setShowPatientForm(false);
+    }
+  };
+
+  if (showPatientForm) {
+    return (
+      <div className="space-y-4">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => setShowPatientForm(false)}
+          className="mb-2"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Volver al formulario de turno
+        </Button>
+        <PatientForm
+          onSubmit={handleCreatePatient}
+          onCancel={() => setShowPatientForm(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <Card className="bg-gradient-card shadow-card border-0">
@@ -64,32 +124,21 @@ export const AppointmentForm = ({ onSubmit, initialData, services = defaultServi
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="clientName">Nombre del Cliente</Label>
-              <Input
-                id="clientName"
-                value={formData.clientName}
-                onChange={(e) => handleChange("clientName", e.target.value)}
-                placeholder="Ingrese el nombre completo"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="clientPhone">Teléfono</Label>
-              <Input
-                id="clientPhone"
-                value={formData.clientPhone}
-                onChange={(e) => handleChange("clientPhone", e.target.value)}
-                placeholder="Ej: +54 9 11 1234-5678"
-                required
-              />
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Patient Selector */}
+          <div className="space-y-2">
+            <Label>Paciente *</Label>
+            <PatientSelector
+              value={selectedPatient}
+              onChange={setSelectedPatient}
+              onCreateNew={() => setShowPatientForm(true)}
+              patients={patients}
+            />
           </div>
 
+          {/* Service */}
           <div className="space-y-2">
-            <Label htmlFor="service">Servicio</Label>
+            <Label htmlFor="service">Servicio *</Label>
             <Select
               value={formData.service}
               onValueChange={(value) => handleChange("service", value)}
@@ -108,11 +157,12 @@ export const AppointmentForm = ({ onSubmit, initialData, services = defaultServi
             </Select>
           </div>
 
+          {/* Date and Time */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="date" className="flex items-center gap-2">
                 <CalendarDays className="h-4 w-4" />
-                Fecha
+                Fecha *
               </Label>
               <Input
                 id="date"
@@ -125,7 +175,7 @@ export const AppointmentForm = ({ onSubmit, initialData, services = defaultServi
             <div className="space-y-2">
               <Label htmlFor="time" className="flex items-center gap-2">
                 <Clock className="h-4 w-4" />
-                Hora
+                Hora *
               </Label>
               <Select
                 value={formData.time}
@@ -146,22 +196,24 @@ export const AppointmentForm = ({ onSubmit, initialData, services = defaultServi
             </div>
           </div>
 
+          {/* Notes */}
           <div className="space-y-2">
             <Label htmlFor="notes">Notas (Opcional)</Label>
             <Textarea
               id="notes"
-              value={formData.notes}
+              value={formData.notes || ""}
               onChange={(e) => handleChange("notes", e.target.value)}
               placeholder="Información adicional sobre el turno..."
               rows={3}
             />
           </div>
 
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
+            disabled={!selectedPatient || creatingPatient}
             className="w-full bg-gradient-primary shadow-button hover:shadow-elegant transition-all duration-300"
           >
-            {initialData ? "Actualizar Turno" : "Crear Turno"}
+            {creatingPatient ? "Creando..." : initialData ? "Actualizar Turno" : "Crear Turno"}
           </Button>
         </form>
       </CardContent>
